@@ -5,6 +5,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import WebView from 'react-native-webview';
 import RNFetchBlob from 'react-native-blob-util';
+import { ReactSketchCanvas } from 'react-sketch-canvas';
 
 const Toast = ({ visible, message, onHide }) => {
   useEffect(() => {
@@ -59,6 +60,12 @@ const CourseDetails = ({ route }) => {
   const message = "";
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [isVideoModalVisible, setIsVideoModalVisible] = useState(false);
+  const [videos, setVideos] = useState([]);
+  const [expandedVideoId, setExpandedVideoId] = useState(null);
+  const [isSketchModalVisible, setIsSketchModalVisible] = useState(false);
+  const [sketchImage, setSketchImage] = useState(null);
 
   const contentPaddingAnimation = menuAnimation.interpolate({
     inputRange: [-menuWidth, 0],
@@ -122,6 +129,8 @@ const CourseDetails = ({ route }) => {
       
       if (response.ok && data) {
         setCourseData(data);
+        setHasVocabulary(data.data?.has_vocabulary === 1);
+        setHasStories(data.data?.has_story === 1);
         if (data.data?.lessons) {
           const currentLesson = data.data.lessons.find(
             lesson => Number(lesson.lesson_id) === Number(unitId)
@@ -331,18 +340,54 @@ const CourseDetails = ({ route }) => {
       const currentLesson = courseData.data.lessons.find(
         lesson => Number(lesson.lesson_id) === Number(unitId)
       );
-      console.log('Current lesson data:', JSON.stringify(currentLesson, null, 2));
       
-      // Check for video_link directly in the lesson
-      if (currentLesson?.video_link) {
-        console.log('Found video link in lesson:', currentLesson.video_link);
-        fetchVideoData(currentLesson.video_link);
-      } else if (currentLesson?.lectures?.[0]?.video_link) {
-        console.log('Found video link in lectures:', currentLesson.lectures[0].video_link);
-        fetchVideoData(currentLesson.lectures[0].video_link);
-      } else {
-        console.log('No video link found in lesson or lectures');
-        setVideoData(null);
+      if (currentLesson) {
+        const fetchAllVideos = async () => {
+          try {
+            setVideoLoading(true);
+            const videoPromises = [];
+            const videoData = [];
+
+            // Add main video if exists
+            if (currentLesson.video_link) {
+              const mainVideoData = await fetchVideoData(currentLesson.video_link);
+              if (mainVideoData) {
+                videoData.push({
+                  id: 'main',
+                  title: mainVideoData.title || 'Main Video',
+                  videoUrl: mainVideoData.videoUrl,
+                  thumbnail: mainVideoData.thumbnail
+                });
+              }
+            }
+
+            // Add lecture videos if they exist
+            if (currentLesson.lectures && currentLesson.lectures.length > 0) {
+              for (const lecture of currentLesson.lectures) {
+                if (lecture.video_link) {
+                  const lectureVideoData = await fetchVideoData(lecture.video_link);
+                  if (lectureVideoData) {
+                    videoData.push({
+                      id: `lecture_${lecture.lecture_id}`,
+                      title: lectureVideoData.title || lecture.title || 'Lecture Video',
+                      videoUrl: lectureVideoData.videoUrl,
+                      thumbnail: lectureVideoData.thumbnail
+                    });
+                  }
+                }
+              }
+            }
+
+            setVideos(videoData);
+          } catch (error) {
+            console.error('Error fetching videos:', error);
+            Alert.alert('Error', 'Failed to fetch videos');
+          } finally {
+            setVideoLoading(false);
+          }
+        };
+
+        fetchAllVideos();
       }
     }
   }, [courseData, unitId]);
@@ -357,8 +402,7 @@ const CourseDetails = ({ route }) => {
   const fetchVideoData = async (videoLink) => {
     if (!videoLink) {
       console.log('No video link provided');
-      setVideoData(null);
-      return;
+      return null;
     }
     
     try {
@@ -368,8 +412,7 @@ const CourseDetails = ({ route }) => {
       if (!token) {
         console.log('No token found');
         Alert.alert('Error', 'Please login to view video content');
-        setVideoData(null);
-        return;
+        return null;
       }
 
       const apiUrl = `https://myattacademyapi.sapphiresolutions.in.net/api/course/lesson/video_player/${videoLink}`;
@@ -394,94 +437,89 @@ const CourseDetails = ({ route }) => {
           const sortedVideos = progressiveVideos.sort((a, b) => b.height - a.height);
           const highestQualityVideo = sortedVideos[0];
           
-          setVideoData({
-            ...data.data,
-            videoUrl: highestQualityVideo.link // Use the progressive link instead of embed.html
-          });
-        } else {
-          console.error('No progressive video links found');
-          Alert.alert('Error', 'Video format not supported');
+          return {
+            title: data.data.name,
+            videoUrl: highestQualityVideo.link,
+            thumbnail: data.data.pictures?.base_link
+          };
         }
-      } else {
-        console.error('Error in video data:', data);
-        Alert.alert('Error', data.message || 'Could not load video data');
       }
+      return null;
     } catch (error) {
       console.error('Error fetching video data:', error);
       Alert.alert('Error', 'Failed to fetch video data');
+      return null;
     } finally {
       setVideoLoading(false);
     }
   };
 
   const renderVideo = () => {
-    console.log('renderVideo called with videoData:', JSON.stringify(videoData, null, 2));
-    
     if (videoLoading) {
       return (
         <View style={styles.videoLoadingContainer}>
           <ActivityIndicator size="large" color="#A9C667" />
-          <Text style={styles.loadingText}>Loading video...</Text>
+          <Text style={styles.loadingText}>Loading videos...</Text>
         </View>
       );
     }
 
-    if (!videoData?.videoUrl) {
+    if (videos.length === 0) {
       return (
         <View style={styles.noVideoContainer}>
-          <Text style={styles.noVideoText}>No video available for this lesson</Text>
+          <Text style={styles.noVideoText}>No videos available for this lesson</Text>
         </View>
       );
     }
 
-    // Create HTML content with video player
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-          <style>
-            body { margin: 0; padding: 0; background-color: black; }
-            .video-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
-            video { width: 100%; height: 100%; object-fit: contain; }
-          </style>
-        </head>
-        <body>
-          <div class="video-container">
-            <video
-              controls
-              playsinline
-              webkit-playsinline
-              src="${videoData.videoUrl}"
-              type="video/mp4"
-            >
-              Your browser does not support the video tag.
-            </video>
-          </div>
-        </body>
-      </html>
-    `;
-
     return (
-      <View style={styles.videoContainer}>
-        <WebView
-          source={{ html: htmlContent }}
-          style={styles.videoPlayer}
-          allowsFullscreenVideo={true}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          mediaPlaybackRequiresUserAction={false}
-          onError={(syntheticEvent) => {
-            const { nativeEvent } = syntheticEvent;
-            console.warn('WebView error:', nativeEvent);
-          }}
-          onLoadError={(syntheticEvent) => {
-            const { nativeEvent } = syntheticEvent;
-            console.warn('WebView load error:', nativeEvent);
-          }}
-          onLoadStart={() => console.log('WebView started loading')}
-          onLoad={() => console.log('WebView loaded successfully')}
-        />
+      <View style={styles.videoCardsContainer}>
+        {videos.map((video, index) => (
+          <View key={video.id} style={styles.videoCard}>
+            <View style={styles.videoCardHeader}>
+              <Text style={styles.videoTitle} numberOfLines={2}>
+                {video.title}
+              </Text>
+            </View>
+            <View style={styles.videoPlayerContainer}>
+              <WebView
+                source={{ 
+                  html: `
+                    <!DOCTYPE html>
+                    <html>
+                      <head>
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                        <style>
+                          body { margin: 0; padding: 0; background-color: black; }
+                          .video-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+                          video { width: 100%; height: 100%; object-fit: contain; }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="video-container">
+                          <video
+                            controls
+                            playsinline
+                            webkit-playsinline
+                            src="${video.videoUrl}"
+                            type="video/mp4"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        </div>
+                      </body>
+                    </html>
+                  `
+                }}
+                style={styles.videoPlayer}
+                allowsFullscreenVideo={true}
+                javaScriptEnabled={true}
+                domStorageEnabled={true}
+                mediaPlaybackRequiresUserAction={false}
+              />
+            </View>
+          </View>
+        ))}
       </View>
     );
   };
@@ -502,18 +540,54 @@ const CourseDetails = ({ route }) => {
 
       // Request storage permission for Android
       if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-          {
-            title: 'Storage Permission',
-            message: 'App needs access to storage to download the image.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
+        try {
+          // For Android 13+ (API level 33+), we need to request specific media permissions
+          if (Platform.Version >= 33) {
+            const mediaPermission = await PermissionsAndroid.request(
+              PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
+              {
+                title: 'Storage Permission',
+                message: 'App needs access to storage to download the image.',
+                buttonNeutral: 'Ask Me Later',
+                buttonNegative: 'Cancel',
+                buttonPositive: 'OK',
+              }
+            );
+            if (mediaPermission !== PermissionsAndroid.RESULTS.GRANTED) {
+              showToast('Storage permission denied');
+              return;
+            }
+          } else {
+            // For Android 12 and below, we need both READ and WRITE permissions
+            const permissions = [
+              PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+              PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+            ];
+
+            const results = await Promise.all(
+              permissions.map(permission =>
+                PermissionsAndroid.request(permission, {
+                  title: 'Storage Permission',
+                  message: 'App needs access to storage to download the image.',
+                  buttonNeutral: 'Ask Me Later',
+                  buttonNegative: 'Cancel',
+                  buttonPositive: 'OK',
+                })
+              )
+            );
+
+            const allGranted = results.every(
+              result => result === PermissionsAndroid.RESULTS.GRANTED
+            );
+
+            if (!allGranted) {
+              showToast('Storage permission denied');
+              return;
+            }
           }
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          showToast('Storage permission denied');
+        } catch (err) {
+          console.error('Permission request error:', err);
+          showToast('Failed to request storage permission');
           return;
         }
       }
@@ -547,8 +621,10 @@ const CourseDetails = ({ route }) => {
       const response = await RNFetchBlob.config(options)
         .fetch('GET', imageUrl)
         .progress((received, total) => {
-          const progress = (received / total) * 100;
-          console.log('progress', progress);
+          const progress = Math.floor((received / total) * 100);
+          if (progress % 25 === 0) { // Update every 25%
+            showToast(`Downloading: ${progress}%`);
+          }
         });
 
       // Handle platform-specific success
@@ -556,12 +632,30 @@ const CourseDetails = ({ route }) => {
         await RNFetchBlob.ios.previewDocument(response.path());
         showToast('Image saved to documents');
       } else {
-        showToast('Image saved to downloads');
+        // For Android, verify the file exists
+        const exists = await fs.exists(response.path());
+        if (exists) {
+          showToast('Image saved to downloads');
+        } else {
+          throw new Error('File not found after download');
+        }
       }
 
     } catch (error) {
       console.error('Download error:', error);
-      showToast('Download failed. Please try again.');
+      let errorMessage = 'Download failed. ';
+      
+      if (error.message.includes('permission')) {
+        errorMessage += 'Storage permission denied. Please grant storage permission in Settings.';
+      } else if (error.message.includes('network')) {
+        errorMessage += 'Network error. Please check your connection.';
+      } else if (error.message.includes('not found')) {
+        errorMessage += 'Image not found.';
+      } else {
+        errorMessage += 'Please try again.';
+      }
+      
+      showToast(errorMessage);
     }
   };
 
@@ -974,7 +1068,7 @@ const CourseDetails = ({ route }) => {
                   {/* Table Header */}
                   <View style={styles.quizTableHeader}>
                     <Text style={[styles.quizTableHeaderText, { flex: 2 }]}>Quiz Title</Text>
-                    <Text style={[styles.quizTableHeaderText, { flex: 1 }]}>Attempts</Text>
+                    <Text style={[styles.quizTableHeaderText, { flex: 1, marginLeft: -36 }]}>Attempts</Text>
                     <View style={{ flex: 1 }} />
                   </View>
                   
@@ -984,7 +1078,7 @@ const CourseDetails = ({ route }) => {
                       <Text style={[styles.quizTableCell, { flex: 2 }]} numberOfLines={2}>
                         {quiz.exam_name || 'Untitled Quiz'}
                       </Text>
-                      <Text style={[styles.quizTableCell, { flex: 1 }]}>
+                      <Text style={[styles.quizTableCell, { flex: 1, marginLeft: -36 }]}>
                         {quiz.attempts || 0}
                       </Text>
                       <View style={{ flex: 1, alignItems: 'center' }}>
@@ -1151,6 +1245,43 @@ const CourseDetails = ({ route }) => {
         message={toastMessage} 
         onHide={hideToast} 
       />
+      {/* Sketch Modal */}
+      <Modal
+        visible={isSketchModalVisible}
+        transparent={false}
+        animationType="slide"
+        statusBarTranslucent={true}
+        onRequestClose={() => setIsSketchModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => setIsSketchModalVisible(false)}
+          >
+            <View style={styles.closeButtonCircle}>
+              <Ionicons name="close-outline" size={24} color="#000" />
+            </View>
+          </TouchableOpacity>
+          {sketchImage && (
+            <View style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }}>
+              <Image
+                source={{ uri: sketchImage }}
+                style={styles.fullScreenImage}
+                resizeMode="contain"
+              />
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+                <ReactSketchCanvas
+                  style={{ flex: 1, backgroundColor: 'transparent' }}
+                  strokeWidth={4}
+                  strokeColor="#FF5400"
+                  width={Dimensions.get('window').width}
+                  height={Dimensions.get('window').height}
+                />
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1373,26 +1504,41 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     zIndex: 3,
   },
-  videoContainer: {
-    marginHorizontal: 10,
-    marginTop: 16,
-    height: 250,
-    borderRadius: 12,
-    overflow: 'hidden',
+  videoCardsContainer: {
+    paddingHorizontal: 10,
+  },
+  videoCard: {
     backgroundColor: '#FFE168',
-    elevation: 3,
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
+  videoCardHeader: {
+    padding: 16,
+    backgroundColor: '#FFE168',
+  },
+  videoTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  videoPlayerContainer: {
+    height: 150,
+    backgroundColor: '#000',
+    width: '100%',
+  },
   videoPlayer: {
     flex: 1,
-    backgroundColor: 'transparent',
-    width: '100%',
-    height: '100%',
-    minHeight: 250,
-    transform: [{ scale: 1.0 }], // Removed scaling to prevent trimming
+    backgroundColor: '#000',
   },
   videoLoadingContainer: {
     height: 250,
@@ -1623,7 +1769,7 @@ const styles = StyleSheet.create({
   },
   viewQuizButton: {
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     backgroundColor: '#55198A',
     borderRadius: 8,
     elevation: 2,
@@ -1634,12 +1780,16 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+    minWidth: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   viewQuizButtonText: {
     fontSize: 14,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
+    flexShrink: 1,
   },
   videoUrlContainer: {
     backgroundColor: '#f5f5f5',
@@ -1668,6 +1818,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     textAlign: 'center',
+  },
+  sketchButton: {
+    position: 'absolute',
+    top: 0,
+    right: 120, // Place it left of the download button
+    zIndex: 1,
+    padding: 20,
+    backgroundColor: 'transparent',
   },
 });
 

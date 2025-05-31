@@ -166,24 +166,24 @@ const MyCourses = ({ navigation }) => {
     const strokeDashoffset = circumference - (progress / 100) * circumference;
 
     return (
-      <TouchableOpacity 
-        key={`${course.grade_id}-${course.subject_id}`}
-        style={styles.courseCard}
-        onPress={() => handleCoursePress(course.course_id, course.grade_id, course.subject_id, course.full_course_name)}
-      >
-        <View style={styles.courseHeader}>
+    <TouchableOpacity 
+      key={`${course.grade_id}-${course.subject_id}`}
+      style={styles.courseCard}
+      onPress={() => handleCoursePress(course.course_id, course.grade_id, course.subject_id, course.full_course_name)}
+    >
+      <View style={styles.courseHeader}>
           <View style={styles.topRow}>
-            {course.image && (
-              <Image 
-                source={{ uri: course.image }} 
-                style={styles.courseImage}
-                resizeMode="cover"
-              />
-            )}
-            <View style={styles.courseInfo}>
-              <Text style={styles.courseTitle}>{course.subject_name}</Text>
+        {course.image && (
+          <Image 
+            source={{ uri: course.image }} 
+            style={styles.courseImage}
+            resizeMode="cover"
+          />
+        )}
+        <View style={styles.courseInfo}>
+          <Text style={styles.courseTitle}>{course.subject_name}</Text>
             </View>
-            <View style={styles.progressContainer}>
+          <View style={styles.progressContainer}>
               <View style={styles.pieChartContainer}>
                 <View style={[styles.pieChart, { width: size, height: size }]}>
                   <View style={[styles.pieChartBackground, { width: size, height: size, borderRadius: size / 2 }]} />
@@ -231,43 +231,43 @@ const MyCourses = ({ navigation }) => {
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Ionicons name="book-outline" size={16} color="#666" />
-              <Text style={styles.statText}>{course.number_of_lecture} Units</Text>
+            <Text style={styles.statText}>{course.number_of_lecture} Units</Text>
             </View>
             <View style={styles.statItem}>
               <Ionicons name="time-outline" size={16} color="#666" />
-              <Text style={styles.statText}>{Math.round(course.total_seconds / 60)}m</Text>
-            </View>
+            <Text style={styles.statText}>{Math.round(course.total_seconds / 60)}m</Text>
           </View>
         </View>
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity 
+      </View>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity 
             style={[
               styles.exploreButton,
               isCompleted && styles.exploreButtonCompleted
             ]}
-            onPress={() => handleCoursePress(course.course_id, course.grade_id, course.subject_id, course.full_course_name)}
-          >
+          onPress={() => handleCoursePress(course.course_id, course.grade_id, course.subject_id, course.full_course_name)}
+        >
             <Text style={styles.buttonText}>Start Learning</Text>
-          </TouchableOpacity>
+        </TouchableOpacity>
 
-          {course.average_progress === 100 && course.certificate_path && (
-            <TouchableOpacity 
-              style={styles.certificateButton}
-              onPress={() => {
+        {course.average_progress === 100 && course.certificate_path && (
+          <TouchableOpacity 
+            style={styles.certificateButton}
+            onPress={() => {
                 Alert.alert(
                   'Download Started',
                   'Your certificate is being downloaded. You will be notified when it\'s ready.',
                   [{ text: 'OK' }]
                 );
-                console.log('Download certificate for:', course.full_course_name);
-              }}
-            >
-              <Text style={styles.buttonText}>Certificate</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </TouchableOpacity>
-    );
+              console.log('Download certificate for:', course.full_course_name);
+            }}
+          >
+            <Text style={styles.buttonText}>Certificate</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
   };
 
   const renderGradeSection = (gradeName, courses) => (

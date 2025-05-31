@@ -94,8 +94,7 @@ const EnrollmentScreen = ({ navigation }) => {
 
     try {
       const requestBody = {
-        first_name: formData.firstName.trim(),
-        last_name: formData.lastName.trim(),
+        name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         gender: formData.gender.trim(),

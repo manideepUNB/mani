@@ -82,25 +82,25 @@ const HomeScreen = ({ navigation, route }) => {
       const data = await response.json();
       console.log('Login response:', data);
 
-      if (data.token) {
+        if (data.token) {
         try {
           // Store token and user data
           await AsyncStorage.setItem('userToken', data.token);
           if (data.user) {
-            await AsyncStorage.setItem('userData', JSON.stringify(data.user));
-          }
-          
+          await AsyncStorage.setItem('userData', JSON.stringify(data.user));
+        }            
+                
           // Store credentials if remember password is checked
-          if (rememberPassword) {
-            await AsyncStorage.setItem('savedEmail', email);
-            await AsyncStorage.setItem('savedPassword', password);
-          }
+        if (rememberPassword) {
+          await AsyncStorage.setItem('savedEmail', email);
+          await AsyncStorage.setItem('savedPassword', password);
+        }
 
           // Update UI state
-          setLoggedIn(true);
-          setIsDropdownVisible(false);
+        setLoggedIn(true);
+        setIsDropdownVisible(false);
           Alert.alert('Success', 'You have been successfully logged in!');
-          return true;
+        return true;
         } catch (storageError) {
           console.error('Storage error:', storageError);
           Alert.alert('Error', 'Failed to save login information. Please try again.');
@@ -128,11 +128,11 @@ const HomeScreen = ({ navigation, route }) => {
     }
 
     try {
-      const success = await loginUser(email, password);
-      if (success) {
-        setIsDropdownVisible(false);
-        setEmail('');
-        setPassword('');
+    const success = await loginUser(email, password);
+    if (success) {
+      setIsDropdownVisible(false);
+      setEmail('');
+      setPassword('');
       }
     } catch (error) {
       console.error('Handle login error:', error);

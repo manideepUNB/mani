@@ -62,6 +62,8 @@ const CartScreen = ({ navigation }) => {
       // Store token
       if (response.data.token) {
         await AsyncStorage.setItem('userToken', response.data.token);
+        await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+        alert('Login successful cart'+response.data.user);
       }
 
       // Store user data - directly from response

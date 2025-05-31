@@ -35,6 +35,7 @@ const LoginScreen = ({ navigation }) => {
         await AsyncStorage.setItem('userToken', response.data.token);
         // Store user data if needed
         await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+        alert('Login successful login page'+response.data.user);
         
         // Navigate back to cart or home screen
         navigation.goBack();

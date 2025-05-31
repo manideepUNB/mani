@@ -13,11 +13,13 @@ import {
   Dimensions,
   ToastAndroid,
   Platform,
-  Modal
+  Modal,
+  Share,
+  Linking
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import Share from 'react-native-share';
+import RNFetchBlob from 'react-native-blob-util';
 import { useNavigation, useRoute } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
@@ -235,6 +237,9 @@ const QuizScreen = ({ route, navigation }) => {
         return;
       }
 
+      showToast('Download started...');
+      console.log('Fetching download link for quiz:', quizId);
+
       const response = await fetch(
         `https://myattacademyapi.sapphiresolutions.in.net/api/course/download-quiz/${quizId}`,
         {
@@ -247,59 +252,54 @@ const QuizScreen = ({ route, navigation }) => {
       );
 
       const data = await response.json();
+      console.log('API Response:', data);
       
-      if (response.ok && data.success === "Success" && data.download_link) {
-        await Share.open({
-          url: data.download_link,
-          type: 'image/jpeg',
-          failOnCancel: false,
-        });
+      if (data && data.download_link) {
+        const downloadUrl = data.download_link;
+        console.log('Opening PDF from URL:', downloadUrl);
+
+        try {
+          const supported = await Linking.canOpenURL(downloadUrl);
+          if (supported) {
+            await Linking.openURL(downloadUrl);
+          } else {
+            Alert.alert('Error', 'Cannot open PDF file');
+          }
+        } catch (error) {
+          console.error('Error opening PDF:', error);
+          Alert.alert('Error', 'Failed to open PDF file');
+        }
       } else {
-        Alert.alert('Error', data.message || 'Could not download quiz questions');
+        console.error('Invalid API response:', data);
+        Alert.alert('Error', 'PDF download link is missing');
       }
     } catch (error) {
-      if (error.message !== 'User did not share') {
-        console.error('Error downloading questions:', error);
-        Alert.alert('Error', 'Failed to download quiz questions');
-      }
+      console.error('Error downloading questions:', error);
+      Alert.alert('Error', 'Failed to download quiz questions');
     }
   };
 
   const generateAnswersPDF = async () => {
     try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (!token) {
-        Alert.alert('Error', 'Please login to download quiz answers');
-        return;
-      }
+      // Use the provided static PDF URL for answers
+      const downloadUrl = 'https://myattacademyapi.sapphiresolutions.in.net/pdfs/Answers_U1Q1%20-%20Let%20s%20Chant%20the%20Consonants%20Beginning.pdf';
+      showToast('Download started...');
+      console.log('Opening PDF from URL:', downloadUrl);
 
-      const response = await fetch(
-        `https://myattacademyapi.sapphiresolutions.in.net/api/course/download-quiz-answer/${quizId}`,
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          }
+      try {
+        const supported = await Linking.canOpenURL(downloadUrl);
+        if (supported) {
+          await Linking.openURL(downloadUrl);
+        } else {
+          Alert.alert('Error', 'Cannot open PDF file');
         }
-      );
-
-      const data = await response.json();
-      
-      if (response.ok && data.success === "Success" && data.download_link) {
-        await Share.open({
-          url: data.download_link,
-          type: 'image/jpeg',
-          failOnCancel: false,
-        });
-      } else {
-        Alert.alert('Error', data.message || 'Could not download quiz answers');
+      } catch (error) {
+        console.error('Error opening PDF:', error);
+        Alert.alert('Error', 'Failed to open PDF file');
       }
     } catch (error) {
-      if (error.message !== 'User did not share') {
-        console.error('Error downloading answers:', error);
-        Alert.alert('Error', 'Failed to download quiz answers');
-      }
+      console.error('Error downloading answers:', error);
+      Alert.alert('Error', 'Failed to download quiz answers');
     }
   };
 
